@@ -1,0 +1,189 @@
+import mysql.connector
+from datetime import date
+import random
+conn= mysql.connector.connect(
+    host="localhost",
+    user="root",
+    passwd="844840",
+    database="new_taxi"
+
+)
+
+# Function to create a new user in the database
+def create_user(conn, user_id, password, category):
+    cursor = conn.cursor()
+    cursor.execute("INSERT INTO users (user_id, password, category) VALUES (%s, %s, %s)",
+                   (user_id, password, category))
+    conn.commit()
+    print("User created successfully.")
+
+# Function to create a new passenger in the database
+def create_car(conn, car_id,model):
+    cursor = conn.cursor()
+    cursor.execute("INSERT INTO vehicles (car_id,model) VALUES (%s, %s)",
+                   (car_id,model))
+    conn.commit()
+    print("vehicle confirmed")
+
+# Function to check if a user with given user ID and password exists in the database
+# and if a passenger with the same ID exists
+def paymentsiftrip(conn,trips_id):
+    
+    sss=conn.cursor()
+    sss.execute('''DELIMITER //
+CREATE TRIGGER insert_payment 
+AFTER UPDATE ON trips 
+FOR EACH ROW 
+BEGIN 
+  IF NEW.status = 'completed' THEN
+    INSERT INTO payments (Payment_Type, Payment_Amount, Payment_Status, trip_id)
+    VALUES ('upi', 20, 'inprogress', NEW.%s);
+  END IF;
+END //
+DELIMITER ;''',(trips_id,))
+    conn.commit()    
+
+def newpick(conn,loc,driver_id):
+    cursor=conn.corsor()
+    cursor.execute(
+        '''DELIMITER //
+
+CREATE TRIGGER update_driver_location
+AFTER UPDATE ON trips
+FOR EACH ROW
+BEGIN
+  IF NEW.status = 'completed' THEN
+    UPDATE drivers
+    SET location = NEW.%s
+    WHERE driver_id = NEW.%s;
+  END IF;
+END //
+
+DELIMITER ;
+'''
+    ,(loc,driver_id))
+
+
+# Function to retrieve passenger details from the database
+def get_passenger_details(conn, passenger_id):
+    cursor = conn.cursor()
+    cursor.execute("SELECT * FROM passenger_info WHERE passenger_id =%s", (passenger_id,))
+    result = cursor.fetchone()
+    return result
+def login(conn, user_id, password):
+    sss = conn.cursor()
+    sss.execute("SELECT p.driver_id, p.name, p.license_number, p.rating FROM users u JOIN drivers p ON u.user_id = p.driver_id WHERE u.user_id = %s AND u.password = %s",
+                (user_id, password))
+    row=sss.fetchone()
+    if row:
+        return row[0], row[1], row[2], row[3]
+    else:
+        return None
+def see_bookings(conn):
+    sss=conn.cursor()
+    sss.execute("SELECT b.*, p.name AS passenger_name FROM bookings b INNER JOIN passenger_info p ON b.passenger_id = p.passenger_id;")
+    result = sss.fetchall() 
+    i=1
+    pr=[]
+    for row in result:
+        
+        print(str(i)+" ",end=" ")
+        print(row)
+        pr.append(row[2])
+        i=i+1
+    return pr
+def lessgo(conn,pass_id,driver_id):
+    sss=conn.cursor()
+    # sss.execute("UPDATE drivers SET status = 'notavail' WHERE driver_id = %s",(driver_id))
+    # conn.commit()
+    dates=date.today()
+    status="in_progress"
+    drop="location1"
+    pick="location2"
+
+    sss.execute("INSERT INTO trips(trip_id,status,date_day,passenger_id,driver_id,drop_location,pickup_location) VALUES (%s, %s, %s, %s,%s, %s, %s)",
+                   (random.randint(100,1000), status, date.today(), pass_id,driver_id,drop,pick))
+    conn.commit()
+    print("TRIP IS ONNNN!")
+    sss.execute("Delete from bookings where passenger_id=%s ",(pass_id,))
+    conn.commit()
+
+    
+def tripdone(conn,driverid):
+    cursor = conn.cursor()
+    cursor.execute("UPDATE trips SET status = 'completed' WHERE driver_id = %s", (driverid,))
+    conn.commit()
+    cursor.execute("Select * from trips where  driver_id = %s", (driverid,))
+    kkk=cursor.fetchone()
+    cursor.execute("INSERT INTO payments(Payment_ID,Payment_Type,Payment_Amount,Payment_Status,Trip_ID) VALUES(%s, %s, %s,%s, %s)",(random.randint(11111,22222),"cash",random.randint(200,700),'inprogress',kkk[0]))
+    conn.commit()
+
+    
+def create_driver(Driver_id,name,license,date_of_birth,rating,location,status,car_id):
+    cursor = conn.cursor()
+    cursor.execute("INSERT INTO drivers (driver_id, name, license_number, date_of_birth,rating,location,status,car_id) VALUES (%s, %s, %s, %s,%s, %s, %s,%s)",
+                   (Driver_id, name, license, date_of_birth,rating,location,status,car_id))
+    conn.commit()
+    print("successfull")
+while True:
+    print("driver Terminal")
+    print("1. Sign up")
+    print("2. Log in")
+    print("3. Exit")
+    choice = input("Enter your choice (1/2/3): ")
+
+    if choice == "1":
+        user_id = input("Enter a user ID: ")
+        password = input("Enter a password: ")
+        category = "driver"
+        create_user(conn, user_id, password, category)
+
+        car_id = int(input("Enter car ID: "))
+        model = input("Enter model: ")
+        
+
+        create_car(conn, car_id,model)
+        
+        name=input("Entere name: ")
+        license=int(input("enter your license numebr"))
+        date_of_birth = input("Enter your date of birth (YYYY-MM-DD): ")
+        location=input("Enter your location")
+        create_driver(user_id,name,license,date_of_birth,0,location,'avail',car_id)
+        
+
+    elif choice == "2":
+
+        user_id = int(input("Enter your user ID: "))
+        password = input("Enter your password: ")
+        driver = login(conn, user_id, password)
+        if driver:
+            flag=1
+            while(True):
+                print("Welcome", driver[1])
+                print("1.Accept a ride")
+                print("2.complete the ride?")
+                print("3.Exit")
+                cc=int(input("Enter your choice"))
+                if cc==3:
+                    break
+                if cc==1:
+                    if flag==1:
+                        print("All the rides: available: ")
+                        pr=see_bookings(conn)
+                        ans=input("Do you want to accept the booking:(Y/N)")
+                        if ans=='Y':
+                            cv=int(input("Select the row number"))
+                            pass_id=pr[cv-1]
+
+                            lessgo(conn,pass_id,driver[0])
+                        flag=1
+                    else:
+                        print("you are on a ride")
+                if cc==2:
+                    ch=input("Have you reached the location(Y/N)")
+                    if ch=='Y':
+                        tripdone(conn,driver[0])
+                        print("you have sucessfully completed the ride!!!!")
+
+        else:
+            print("Invalid user ID or password.")

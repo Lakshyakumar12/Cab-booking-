@@ -1,0 +1,160 @@
+import mysql.connector
+import random
+conn= mysql.connector.connect(
+    host="localhost",
+    user="root",
+    passwd="844840",
+    database="new_taxi"
+
+)
+css=conn.cursor()
+css.execute("GRANT ALL PRIVILEGES ON new_taxi.* TO 'root'@'localhost';")
+
+# Function to create a new user in the database
+def create_user(conn, user_id, password, category):
+    cursor = conn.cursor()
+    db=conn.cursor()
+    db.execute("Select * from users where user_id=%s",(user_id,))
+    rows=db.fetchone()
+    print(rows)
+    if rows is None:
+        cursor.execute("INSERT INTO users (user_id, password, category) VALUES (%s, %s, %s)",
+                    (user_id, password, category))
+        conn.commit()
+        name = input("Enter your name: ")
+        date_of_birth = input("Enter your date of birth (YYYY-MM-DD): ")
+        pickup_location = input("Enter your pickup location: ")
+        create_passenger(conn, user_id, name, date_of_birth, pickup_location)
+        print("User created successfully.")
+    else:
+        print("user id already exists choose a new id")
+
+# Function to create a new passenger in the database
+def create_passenger(conn, passenger_id, name, date_of_birth, pickup_location):
+    cursor = conn.cursor()
+    cursor.execute("INSERT INTO passenger_info (passenger_id, name, date_of_birth, pickup_location) VALUES (%s, %s, %s, %s)",
+                   (passenger_id, name, date_of_birth, pickup_location))
+    conn.commit()
+    
+    print("Passenger account created successfully.")
+
+# Function to check if a user with given user ID and password exists in the database
+# and if a passenger with the same ID exists
+
+def create_booking(conn,pickloc,droploc,pid):
+    cursor=conn.cursor()
+    cursor.execute("INSERT INTO bookings(drop_location,pickup_location,passenger_id) VALUES(%s, %s, %s)",
+                    (droploc,pickloc,pid))
+    conn.commit()
+    print("YOu have successfully booked a ride")
+    
+def checkstatus(conn,passengerid):
+    
+    cursor=conn.cursor()
+    kk=cursor.execute("SELECT * FROM trips WHERE passenger_id = %s",
+                    (passengerid,))
+    rows = cursor.fetchone()  # Fetch all rows from the cursor
+    print(rows)
+    if rows[1]=='completed':
+        sss=rows[0]
+        print(sss)
+        print("Your trip has been completed !! Please pay the driver")
+        cursor.execute("Delete from trips where passenger_id=%s;",(passengerid,))
+        conn.commit()
+        return sss
+    return 0
+
+def completepayment(conn,passengerid,rrr):
+    print(rrr)
+    cursor=conn.cursor()
+    cursor.execute("Select * from payments where Trip_ID=%s",(rrr,))
+    rew=cursor.fetchone()
+    print(rew)
+    ccccc=input("input ok to complete the payment")
+    if ccccc=='ok':
+        cursor.execute("Update payments SET PAYMENT_STATUS='completed' where trip_id=%s",(rrr,))
+        conn.commit()
+        print("thank you for paying")
+
+
+
+# Function to retrieve passenger details from the database
+def get_passenger_details(conn, passenger_id):
+    cursor = conn.cursor()
+    cursor.execute("SELECT * FROM passenger_info WHERE passenger_id =%s", (passenger_id,))
+    result = cursor.fetchone()
+    return result
+def login(conn, user_id, password):
+    sss = conn.cursor()
+    sss.execute("SELECT p.passenger_id, p.name, p.date_of_birth, p.pickup_location FROM users u JOIN passenger_info p ON u.user_id = p.passenger_id WHERE u.user_id = %s AND u.password = %s",
+                (user_id, password))
+    row=sss.fetchone()
+    if row:
+        return row[0], row[1], row[2], row[3]
+    else:
+        return None
+
+
+while True:
+    print("Passenger Terminal")
+    print("1. Sign up")
+    print("2. Log in")
+    print("3. Exit")
+    choice = input("Enter your choice (1/2/3): ")
+
+    if choice == "1":
+        user_id = input("Enter a user ID: ")
+        password = input("Enter a password: ")
+        category = "passenger"
+        create_user(conn, user_id, password, category)
+
+        # passenger_id = int(input("Enter passenger ID: "))
+        # name = input("Enter your name: ")
+        # date_of_birth = input("Enter your date of birth (YYYY-MM-DD): ")
+        # pickup_location = input("Enter your pickup location: ")
+
+        
+
+    elif choice == "2":
+
+        user_id = int(input("Enter your user ID: "))
+        password = input("Enter your password: ")
+        passenger = login(conn, user_id, password)
+        if passenger:
+            
+            while(True):
+                
+            # print("Login successful.")
+            # print("Passenger ID: ", passenger[0])
+            # print("Name: ", passenger[1])
+            # print("Date of Birth: ", passenger[2])
+            # print("Pickup Location: ", passenger[3])
+                print("Welcome", passenger[1])
+                print("1. Book a ride")
+                print("2.Know the status")
+                print("3.pay the driver")
+                cc=int(input("Enter your choice"))
+                if cc==4:
+                    break
+                if cc==1:
+                    pickloc=input(("Enter your pickup location: "))
+                    droploc=input(("Enter your drop location: "))
+                    create_booking(conn,pickloc,droploc,passenger[0])
+                    
+                
+                if cc==2:
+                    rrr=checkstatus(conn,passenger[0])
+                if cc==3:
+                    if rrr!=0:
+                        completepayment(conn,passenger[0],rrr)
+                    else:
+                        print("you have an ongoin trip or the trip has not been completed")
+
+
+
+                
+
+
+
+        else:
+            print("Invalid user ID or password.")
